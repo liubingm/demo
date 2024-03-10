@@ -14,6 +14,10 @@ func main() {
 	// util.FolderIteration_new(*folderPath)
 
 	logResults := util.FetchCloudWathLogs()
+	if len(logResults) == 0 {
+		fmt.Println("no log found")
+		return
+	}
 
 	systemPrompt, claudePromptsMessages := util.BuildMQTTAnalysisPrompt(logResults)
 
