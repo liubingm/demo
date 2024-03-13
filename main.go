@@ -21,8 +21,10 @@ func main() {
 
 	systemPrompt, claudePromptsMessages := util.BuildMQTTAnalysisPrompt(logResults)
 
+	fmt.Println(systemPrompt)
+	fmt.Println(claudePromptsMessages)
+
 	result, _ := util.CallClaude3WithRetry(systemPrompt, claudePromptsMessages, 5, 120*time.Second)
 
-	fmt.Println(result)
-
+	fmt.Println("claude Advice" + result)
 }

@@ -27,8 +27,7 @@ Please out put json format as below:\n
 	}
 
 	assistantPrompt := `{
-		"Reason": "",
-		"Solution": ""`
+		"Reason":`
 
 	messages = []Message{
 		{Role: "user", Content: userPrompt},
