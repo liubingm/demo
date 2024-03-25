@@ -17,7 +17,7 @@ const REGION = "us-east-1"
 const LOGGROUP_NAME = "AWSIotLogsV2" // change the log group name when online
 //const LOG_PATTERN = "info"           // change it to error when online
 
-func FetchCloudWathLogs() []string {
+func FetchCloudWatchLogs() []string {
 	var logResults []string
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(REGION),
@@ -62,7 +62,7 @@ func fetchLogStreamLog(awsConfig *cloudwatchlogs.Client, logGroupName string, lo
 		log.Fatalf("GetLogEvents error, %v", err)
 	}
 	for _, event := range result.Events { //遍历所有日志事件，打印每个事件的时间戳和消息内容，并将消息内容添加到一个字符串切片中。
-		fmt.Printf("Timestamp: %d, Message: %s\n", event.Timestamp, *event.Message)
+		//fmt.Printf("Timestamp: %d, Message: %s\n", event.Timestamp, *event.Message)
 		logResults = append(logResults, aws.ToString(event.Message))
 	}
 	return logResults

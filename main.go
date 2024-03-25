@@ -5,26 +5,24 @@ import (
 	"time"
 
 	"github.com/zhaokm/sleep/util"
+	//"github.com/zhaokm/sleep/util"
 )
 
 func main() {
 
-	// folderPath := flag.String("o", "C:/demo/", "folder path")
-	// flag.Parse()
-	// util.FolderIteration_new(*folderPath)
-
-	logResults := util.FetchCloudWathLogs()
+	//从CloudWatch读取日志
+	logResults := util.FetchCloudWatchLogs()
 	if len(logResults) == 0 {
 		fmt.Println("no log found")
 		return
 	}
+	//将日志数据导入Prompt模板，形成大模型输入
+	systemPrompt, claudePromptsMessages := util.BuildLogAnalysisPrompt(logResults)
+	//fmt.Println("系统提示" + systemPrompt)
+	fmt.Println("Input", claudePromptsMessages)
 
-	systemPrompt, claudePromptsMessages := util.BuildMQTTAnalysisPrompt(logResults)
-
-	fmt.Println(systemPrompt)
-	fmt.Println(claudePromptsMessages)
-
+	//调用Bedrock-Claude3模型，分析并返回结果
 	result, _ := util.CallClaude3WithRetry(systemPrompt, claudePromptsMessages, 5, 120*time.Second)
-
-	fmt.Println("claude Advice" + result)
+	fmt.Println("claude Advice")
+	fmt.Println(result)
 }
