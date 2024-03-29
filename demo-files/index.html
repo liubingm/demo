@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multilingual Audio Translation Demo</title>
+    <script type="text/javascript" src="//code.jquery.com/jquery-2.1.4.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
+    <script type="text/javascript" charset="utf-8">
+
+        $(document).ready(function () {
+            const socket = io('http://localhost:5000');
+
+            socket.on('connect', function () {
+                socket.emit('my_event', {data: 'I\'m connected!'});
+            });
+            socket.on('disconnect', function () {
+                $('#log').append('<br>Disconnected');
+            });
+            socket.on('my_response', function (msg) {
+                $('#log').append('<br>Received: ' + msg.data);
+            });
+            socket.on('display_speech_transcription', function (msg) {
+                $('#log').append('<br>Transcription: ' + msg.data);
+            });
+
+            // Automatically play audio
+            const audioPlayer = document.getElementById('audio_player');
+            
+            socket.on('play_translated_audio', (data) => {
+                
+                // console.log(data)
+
+                // test 1
+                // const blob = new Blob([data], { type: 'audio/wav', bitsPerSecond: 256000});
+                // const audioUrl = URL.createObjectURL(blob);
+                // console.log(audioUrl)
+                // audioPlayer.src = audioUrl;
+                // audioPlayer.play().catch(error => {
+                //     console.error('Failed to play audio:', error);
+                // });
+
+                // test 2
+                // const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                // // You can either load an audio file and decode it into an AudioBuffer using AudioContext.decodeAudioData, or create an AudioBuffer from scratch using AudioContext.createBuffer.
+
+                // // Option 2: Create an AudioBuffer from scratch
+                // const channels = 1; // Mono
+                // const sampleRate = 44100;
+                // const frameCount = sampleRate * 4; // 2 seconds
+                // // const audioBuffer = audioContext.createBuffer(channels, frameCount, sampleRate);
+                // const audioBuffer = new AudioBuffer({
+                //     length: frameCount,
+                //     sampleRate: sampleRate
+                // });
+
+                // bufferLength = sampleRate
+
+                // // Create a Float32Array for the sample data
+                // const sampleData = new Float32Array(bufferLength);
+
+                // // Fill the Float32Array with some sample data (e.g., a sine wave)
+                // // for (let i = 0; i < bufferLength; i++) {
+                // // sampleData[i] = Math.sin(2 * Math.PI * i / sampleRate * 440); // 440 Hz sine wave
+                // // }
+                // audioBuffer.copyToChannel(sampleData, 0, 0);
+
+                // const source = audioContext.createBufferSource();
+                // source.buffer = audioBuffer;
+                
+                // source.connect(audioContext.destination);
+
+                // source.start();
+
+                // // // test 3
+                const audioBuffer = new Float32Array(data).buffer;
+                // const audioBuffer = new Uint16Array(data).buffer;
+
+                // Create an AudioContext and decode the audio data
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContext.decodeAudioData(data)
+                    .then((decodedData) => {
+                        // Create an AudioBufferSourceNode and play the audio
+                        const source = audioContext.createBufferSource();
+                        source.buffer = decodedData;
+
+                        const gainNode = audioContext.createGain();
+                        gainNode.gain.value = 0.5; // 将音量降低一半
+
+                        source.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+                        source.start();
+                    })
+                    .catch((error) => {
+                        console.error('Error decoding audio data:', error);
+                    });
+            });
+
+            // event handler for server sent data
+            // the data is displayed in the "Received" section of the page
+            // handlers for the different forms in the page
+            // these send data to the server in a variety of ways
+            $('form#emit').submit(function (event) {
+                socket.emit('my_event', {data: $('#emit_data').val()});
+                socket.emit('msg_from_server', {data: $('#emit_data').val()});
+                return false;
+            });
+            $('form#broadcast').submit(function (event) {
+                socket.emit('my_broadcast_event', {data: $('#broadcast_data').val()});
+                return false;
+            });
+            $('form#join').submit(function (event) {
+                socket.emit('join', {room: $('#join_room').val()});
+                return false;
+            });
+            $('form#leave').submit(function (event) {
+                socket.emit('leave', {room: $('#leave_room').val()});
+                return false;
+            });
+            $('form#send_room').submit(function (event) {
+                socket.emit('my_room_event', {room: $('#room_name').val(), data: $('#room_data').val()});
+                return false;
+            });
+            $('form#close').submit(function (event) {
+                socket.emit('close room', {room: $('#close_room').val()});
+                return false;
+            });
+            $('form#disconnect').submit(function (event) {
+                socket.emit('disconnect request');
+                return false;
+            });
+
+            // Process File translation
+            $('form#file_translation').submit(function (event) {
+                socket.emit('translate', {
+                    data: {
+                        "speech_local_file_path": $('#speech_local_file_path').val(),
+                        "target_lang": $('#target_lang').val()
+                    }
+                });
+                return false;
+            });
+
+            let mediaRecorder;
+            const chunks = [];
+
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+            // const convertToPCM16 = (audioData) => {
+            //     const pcmData = new Int16Array(audioData);
+            //     const pcm16Data = pcmData.buffer;
+            //     return pcm16Data;
+            // };
+
+            startButton.addEventListener('click', () => {
+                // navigator.mediaDevices.getUserMedia({audio: true}) // Can be {audio: true, video: true}
+                navigator.mediaDevices.getUserMedia({audio:
+                {
+                    sampleSize: 16, 
+                    channelCount: 1, 
+                    sampleRate: 48000 //16000 works but not good
+                }
+            })
+                    .then(stream => {
+
+                        // true on chrome, false on firefox
+                        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')){
+                            extension="webm";
+                        }else{
+                            extension="ogg"
+                        }
+
+                        var options = {
+                            audioBitsPerSecond :  256000,
+                            videoBitsPerSecond : 2500000,
+                            mimeType : 'audio/'+extension+';codecs=opus'
+                        }
+
+                        // Refer: https://voysis.readme.io/docs/audio-guidelines
+                        // MIME_Type does matter for capturing. Only audio/webm works now.
+                        // mediaRecorder = new MediaRecorder(stream, {mimeType: 'audio/webm'});
+                        mediaRecorder = new MediaRecorder(stream, options);
+                        mediaRecorder.start();
+
+                        startButton.disabled = true;
+                        stopButton.disabled = false;
+                        
+                        mediaRecorder.ondataavailable = event => {
+                            // socket.emit('audio_data', event.data);
+
+                            chunks.push(event.data);
+                            // if recorder is 'inactive' then recording has finished
+                            if (mediaRecorder.state == 'inactive') {
+                                // convert stream data chunks to a 'webm' audio format as a blob
+                                const blob = new Blob(chunks, { type: 'audio/'+extension, bitsPerSecond: options.audioBitsPerSecond});
+                                socket.emit('audio_data', blob);
+                                chunks.length = 0;  // clear chunks
+                            }
+                        };
+                    })
+                    .catch(error => {
+                        console.error('Error accessing microphone:', error);
+                    });
+            });
+
+            stopButton.addEventListener('click', () => {
+                mediaRecorder.stop();
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            });
+        });
+    </script>
+</head>
+<body>
+<h1>Multilingual Audio Translation Demo</h1>
+<button id="startButton">Start Recording</button>
+<button id="stopButton" disabled>Stop Recording</button>
+
+<h2>Audio Translation</h2>
+<form id="file_translation" method="POST" action='#'>
+    <input type="text" width="300" name="speech_local_file_path" id="speech_local_file_path" placeholder="Message">
+    <br/>
+    <label for="language-select">Select Language:</label>
+    <select id="target_lang">
+        <option value="eng">English</option>
+        <option value="cmn">Mandarin</option>
+        <option value="jpn">Japanese</option>
+        <option value="por">Portuguese</option>
+    </select>
+    <br/>
+    <input type="submit" value="Translate">
+</form>
+
+<div>
+    <p>Received Translated Audio</p>
+    <audio controls id="audio_player"></audio>
+</div>
+
+
+<h2>Send:</h2>
+<form id="emit" method="POST" action='#'>
+    <input type="text" name="emit_data" id="emit_data" placeholder="Message">
+    <input type="submit" value="Echo">
+</form>
+<form id="broadcast" method="POST" action='#'>
+    <input type="text" name="broadcast_data" id="broadcast_data" placeholder="Message">
+    <input type="submit" value="Broadcast">
+</form>
+<form id="join" method="POST" action='#'>
+    <input type="text" name="join_room" id="join_room" placeholder="Room Name">
+    <input type="submit" value="Join Room">
+</form>
+<form id="leave" method="POST" action='#'>
+    <input type="text" name="leave_room" id="leave_room" placeholder="Room Name">
+    <input type="submit" value="Leave Room">
+</form>
+<form id="send_room" method="POST" action='#'>
+    <input type="text" name="room_name" id="room_name" placeholder="Room Name">
+    <input type="text" name="room_data" id="room_data" placeholder="Message">
+    <input type="submit" value="Send to Room">
+</form>
+<form id="close" method="POST" action="#">
+    <input type="text" name="close_room" id="close_room" placeholder="Room Name">
+    <input type="submit" value="Close Room">
+</form>
+<form id="disconnect" method="POST" action="#">
+    <input type="submit" value="Disconnect">
+</form>
+<h2>Receive:</h2>
+<div><p id="log"></p></div>
+
+
+</body>
+</html>
